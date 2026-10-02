@@ -1,1 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal de Entrega - Astrolábio Studio</title>
+  
+  <!-- Studio Favicon -->
+  <link rel="icon" type="image/png" href="https://firebasestorage.googleapis.com/v0/b/astro-remote-dub.firebasestorage.app/o/astro-logo_100.png?alt=media&token=369a83f9-5a54-42f7-a159-e2e3f7588338" />
+
+  <style>
+    /* Fullscreen layout without parent scrollbars */
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #141416;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f0f0f3;
+    }
+
+    /* Iframe filling the entire viewport */
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background-color: #141416;
+    }
+
+    /* Loading overlay while the web app initializes */
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #141416;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: opacity 0.3s ease;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(255, 210, 0, 0.15);
+      border-top-color: #ffd200;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      font-size: 14px;
+      color: #9e9ea7;
+      letter-spacing: 0.5px;
+    }
+
+    /* Configuration prompt if APPS_SCRIPT_URL is not configured */
+    #setup-card {
+      display: none;
+      max-width: 540px;
+      background: #1f1f23;
+      border: 1px solid #333338;
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: center;
+      margin: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    #setup-card h2 {
+      margin-top: 0;
+      color: #ffd200;
+      font-size: 1.3em;
+    }
+
+    #setup-card p {
+      color: #cccccc;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    #setup-card code {
+      background: #121214;
+      color: #ffd200;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading & Setup Overlay -->
+  <div id="loading-overlay">
+    <div id="spinner-box">
+      <div class="spinner"></div>
+      <div class="loading-text">Carregando Portal de Entrega...</div>
+    </div>
+
+    <!-- On-screen setup guide shown only if APPS_SCRIPT_URL is not configured -->
+    <div id="setup-card">
+      <h2>⚙️ Configuração Inicial Necessária</h2>
+      <p>
+        Abra o arquivo <code>index.html</code> e cole a URL de produção do seu Google Apps Script (<code>/exec</code>) na constante <code>APPS_SCRIPT_URL</code>.
+      </p>
+    </div>
+  </div>
+
+  <!-- The Google Apps Script Web App Iframe -->
+  <iframe
+    id="appFrame"
+    src=""
+    allow="clipboard-read; clipboard-write; fullscreen"
+    loading="eager">
+  </iframe>
+
+  <script>
+    (function () {
+      /**
+       * =========================================================================
+       * 1. GOOGLE APPS SCRIPT WEB APP URL (PRODUCTION)
+       * =========================================================================
+       * Paste your published Apps Script Web App URL below (ending in /exec).
+       * Example:
+       * const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb.../exec";
+       */
+      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwo8ak-CDFzL8CMdb2ZjNNC8FT_Ccnvwthbvy28q2rLcoSgkwsFGOxtfUOrAQEeqMJ8Ew/exec";
+
+      const frame = document.getElementById("appFrame");
+      const overlay = document.getElementById("loading-overlay");
+      const spinnerBox = document.getElementById("spinner-box");
+      const setupCard = document.getElementById("setup-card");
+
+      // Verify URL configuration
+      if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbwo8ak-CDFzL8CMdb2ZjNNC8FT_Ccnvwthbvy28q2rLcoSgkwsFGOxtfUOrAQEeqMJ8Ew/exec")) {
+        spinnerBox.style.display = "none";
+        setupCard.style.display = "block";
+        return;
+      }
+
+      // Forward all incoming query parameters (?jobId=...&project=... etc.)
+      const separator = APPS_SCRIPT_URL.indexOf("?") !== -1 ? "&" : "?";
+      const incomingSearch = window.location.search ? window.location.search.replace(/^\?/, "") : "";
+      const targetSrc = incomingSearch
+        ? `${APPS_SCRIPT_URL}${separator}${incomingSearch}`
+        : APPS_SCRIPT_URL;
+
+      frame.src = targetSrc;
+
+      // Smoothly hide loading overlay once the iframe finishes loading
+      frame.onload = function () {
+        overlay.style.opacity = "0";
+        setTimeout(function () {
+          overlay.style.display = "none";
+        }, 300);
+      };
+    })();
+  </script>
+</body>
+
+</html>
 
