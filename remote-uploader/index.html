@@ -5,9 +5,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Portal de Entrega - Astrolábio Studio</title>
-  
+
   <!-- Studio Favicon -->
-  <link rel="icon" type="image/png" href="https://firebasestorage.googleapis.com/v0/b/astro-remote-dub.firebasestorage.app/o/astro-logo_100.png?alt=media&token=369a83f9-5a54-42f7-a159-e2e3f7588338" />
+  <link rel="icon" type="image/png"
+    href="https://firebasestorage.googleapis.com/v0/b/astro-remote-dub.firebasestorage.app/o/astro-logo_100.png?alt=media&token=369a83f9-5a54-42f7-a159-e2e3f7588338" />
 
   <style>
     /* Fullscreen layout without parent scrollbars */
@@ -81,9 +82,10 @@
     }
 
     /* Configuration prompt if APPS_SCRIPT_URL is not configured */
-    #setup-card {
+    #setup-card,
+    #error-card {
       display: none;
-      max-width: 540px;
+      max-width: 520px;
       background: #1f1f23;
       border: 1px solid #333338;
       border-radius: 12px;
@@ -93,13 +95,15 @@
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
 
-    #setup-card h2 {
+    #setup-card h2,
+    #error-card h2 {
       margin-top: 0;
       color: #ffd200;
       font-size: 1.3em;
     }
 
-    #setup-card p {
+    #setup-card p,
+    #error-card p {
       color: #cccccc;
       font-size: 13.5px;
       line-height: 1.5;
@@ -111,6 +115,27 @@
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 12px;
+    }
+
+    .action-btn {
+      background: #ffd200;
+      color: #141416;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 24px;
+      font-size: 13.5px;
+      cursor: pointer;
+      margin-top: 14px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .action-btn:hover {
+      opacity: 0.9;
+    }
+
+    .action-btn:active {
+      transform: scale(0.98);
     }
   </style>
 </head>
@@ -127,17 +152,25 @@
     <div id="setup-card">
       <h2>⚙️ Configuração Inicial Necessária</h2>
       <p>
-        Abra o arquivo <code>index.html</code> e cole a URL de produção do seu Google Apps Script (<code>/exec</code>) na constante <code>APPS_SCRIPT_URL</code>.
+        Abra o arquivo <code>index.html</code> e cole a URL de produção do seu Google Apps Script (<code>/exec</code>)
+        na constante <code>APPS_SCRIPT_URL</code>.
       </p>
+    </div>
+
+    <!-- Error / Timeout Card shown if iframe fails to load after timeout -->
+    <div id="error-card">
+      <h2>⚠️ Instabilidade no Carregamento</h2>
+      <p>
+        O portal de entrega está demorando mais que o esperado para responder. Isso pode ocorrer devido a oscilações temporárias na rede ou nos servidores do Google.
+      </p>
+      <button id="retry-btn" class="action-btn">
+        Tentar Novamente
+      </button>
     </div>
   </div>
 
   <!-- The Google Apps Script Web App Iframe -->
-  <iframe
-    id="appFrame"
-    src=""
-    allow="clipboard-read; clipboard-write; fullscreen"
-    loading="eager">
+  <iframe id="appFrame" src="" allow="clipboard-read; clipboard-write; fullscreen" loading="eager">
   </iframe>
 
   <script>
@@ -146,9 +179,6 @@
        * =========================================================================
        * 1. GOOGLE APPS SCRIPT WEB APP URL (PRODUCTION)
        * =========================================================================
-       * Paste your published Apps Script Web App URL below (ending in /exec).
-       * Example:
-       * const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb.../exec";
        */
       const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwo8ak-CDFzL8CMdb2ZjNNC8FT_Ccnvwthbvy28q2rLcoSgkwsFGOxtfUOrAQEeqMJ8Ew/exec";
 
@@ -156,6 +186,8 @@
       const overlay = document.getElementById("loading-overlay");
       const spinnerBox = document.getElementById("spinner-box");
       const setupCard = document.getElementById("setup-card");
+      const errorCard = document.getElementById("error-card");
+      const retryBtn = document.getElementById("retry-btn");
 
       // Verify URL configuration
       if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE")) {
@@ -164,7 +196,7 @@
         return;
       }
 
-      // Forward all incoming query parameters (?jobId=...&project=... etc.)
+      // Forward all incoming query parameters (?jobId=...&sig=... etc.)
       const separator = APPS_SCRIPT_URL.indexOf("?") !== -1 ? "&" : "?";
       const incomingSearch = window.location.search ? window.location.search.replace(/^\?/, "") : "";
       const targetSrc = incomingSearch
@@ -173,16 +205,59 @@
 
       frame.src = targetSrc;
 
-      // Smoothly hide loading overlay once the iframe finishes loading
-      frame.onload = function () {
+      let isReady = false;
+      let hasAutoRetried = false;
+      let loadTimeout = null;
+
+      function hideOverlay() {
+        if (isReady) return;
+        isReady = true;
+        if (loadTimeout) {
+          clearTimeout(loadTimeout);
+          loadTimeout = null;
+        }
         overlay.style.opacity = "0";
         setTimeout(function () {
           overlay.style.display = "none";
         }, 300);
-      };
+      }
+
+      function handleTimeout() {
+        if (isReady) return;
+        if (!hasAutoRetried) {
+          hasAutoRetried = true;
+          console.warn("Primeiro timeout de 20s atingido. Recarregando iframe automaticamente...");
+          const sep = targetSrc.indexOf("?") !== -1 ? "&" : "?";
+          frame.src = `${targetSrc}${sep}_retry=${Date.now()}`;
+          loadTimeout = setTimeout(handleTimeout, 20000);
+        } else {
+          console.warn("Segundo timeout atingido. Exibindo card de tentativa.");
+          spinnerBox.style.display = "none";
+          errorCard.style.display = "block";
+        }
+      }
+
+      // Listen for ASTRO_UPLOADER_READY handshake from uploader.html
+      window.addEventListener("message", function (event) {
+        if (event.data && event.data.type === "ASTRO_UPLOADER_READY") {
+          hideOverlay();
+        }
+      });
+
+      // Retry button click
+      retryBtn.addEventListener("click", function () {
+        errorCard.style.display = "none";
+        spinnerBox.style.display = "flex";
+        hasAutoRetried = true;
+        const sep = targetSrc.indexOf("?") !== -1 ? "&" : "?";
+        frame.src = `${targetSrc}${sep}_retry=${Date.now()}`;
+        loadTimeout = setTimeout(handleTimeout, 20000);
+      });
+
+      // Start 20-second timeout guard
+      loadTimeout = setTimeout(handleTimeout, 20000);
     })();
   </script>
 </body>
 
 </html>
-
