@@ -242,26 +242,39 @@
         hideOverlay();
       };
 
+      // Apps Script renders the app inside a nested *.googleusercontent.com sandbox.
+      // Only trust tour messages coming from there.
+      function isTrustedAppOrigin(origin) {
+        try {
+          return new URL(origin).hostname.endsWith(".googleusercontent.com");
+        } catch (e) {
+          return false;
+        }
+      }
+
       // 2. Dual Strategy: Direct postMessage handshake from uploader.html
       window.addEventListener("message", function (event) {
-        if (event.data && event.data.type === "ASTRO_UPLOADER_READY") {
+        if (!event.data || !event.data.type) return;
+
+        if (event.data.type === "ASTRO_UPLOADER_READY") {
           hideOverlay();
 
-          // Sync product tour completion status with uploader iframe from first-party localStorage
+          // Reply directly to the sandbox window that sent READY (event.source).
+          // frame.contentWindow is Google's outer frame, which drops relayed messages.
+          if (!isTrustedAppOrigin(event.origin) || !event.source) return;
           try {
             const tourDone = localStorage.getItem("astro_uploader_tour_completed") === "true";
-            if (frame && frame.contentWindow) {
-              frame.contentWindow.postMessage({
-                type: "ASTRO_TOUR_STATUS",
-                tourCompleted: tourDone
-              }, "*");
-            }
+            event.source.postMessage({
+              type: "ASTRO_TOUR_STATUS",
+              tourCompleted: tourDone
+            }, event.origin);
           } catch (e) {
             console.warn("Could not read top-level localStorage for tour status:", e);
           }
         }
 
-        if (event.data && event.data.type === "ASTRO_TOUR_FINISH") {
+        if (event.data.type === "ASTRO_TOUR_FINISH") {
+          if (!isTrustedAppOrigin(event.origin)) return;
           try {
             localStorage.setItem("astro_uploader_tour_completed", "true");
           } catch (e) {
