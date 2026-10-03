@@ -246,6 +246,27 @@
       window.addEventListener("message", function (event) {
         if (event.data && event.data.type === "ASTRO_UPLOADER_READY") {
           hideOverlay();
+
+          // Sync product tour completion status with uploader iframe from first-party localStorage
+          try {
+            const tourDone = localStorage.getItem("astro_uploader_tour_completed") === "true";
+            if (frame && frame.contentWindow) {
+              frame.contentWindow.postMessage({
+                type: "ASTRO_TOUR_STATUS",
+                tourCompleted: tourDone
+              }, "*");
+            }
+          } catch (e) {
+            console.warn("Could not read top-level localStorage for tour status:", e);
+          }
+        }
+
+        if (event.data && event.data.type === "ASTRO_TOUR_FINISH") {
+          try {
+            localStorage.setItem("astro_uploader_tour_completed", "true");
+          } catch (e) {
+            console.warn("Could not save tour state to top-level localStorage:", e);
+          }
         }
       });
 
